@@ -104,13 +104,30 @@ class TestMessageTargetUrls:
             ("https://www.linkedin.com/in/testuser/edit/intro/", None),
             ("https://www.linkedin.com/in/testuser%2Fedit/", None),
             ("https://www.linkedin.com/in/testuser/?trk=profile", None),
-            # The 2026 profile page lands on this flag; it is the only query allowed.
+            # LinkedIn adds isSelfProfile and nothing else. false is another
+            # member (#1181); true is the signed-in member after /in/me/
+            # (#1364). Either value alone is that landing.
             (
                 "https://www.linkedin.com/in/testuser/?isSelfProfile=false",
                 "/in/testuser/",
             ),
-            ("https://www.linkedin.com/in/testuser/?isSelfProfile=true", None),
+            (
+                "https://www.linkedin.com/in/testuser/?isSelfProfile=true",
+                "/in/testuser/",
+            ),
+            (
+                "https://de.linkedin.com/in/testuser/?isSelfProfile=true",
+                "/in/testuser/",
+            ),
             ("https://www.linkedin.com/in/testuser/?isSelfProfile=false&trk=x", None),
+            ("https://www.linkedin.com/in/testuser/?isSelfProfile=true&trk=x", None),
+            ("https://www.linkedin.com/in/testuser/?isSelfProfile=yes", None),
+            ("https://www.linkedin.com/in/testuser/?isSelfProfile=TRUE", None),
+            ("https://evil.example/in/testuser/?isSelfProfile=true", None),
+            (
+                "https://www.linkedin.com/in/testuser/edit/intro/?isSelfProfile=true",
+                None,
+            ),
             ("https://www.linkedin.com/in/testuser/#details", None),
         ],
     )
@@ -200,6 +217,28 @@ class TestReadProfileMessageTarget:
         assert resolution.status == "resolved"
         assert resolution.target is not None
         assert resolution.target.profile_path == "/in/canonical-user/"
+        assert resolution.target.profile_urn == "ACoAAB"
+
+    async def test_self_profile_redirect_resolves_its_top_card(self, mock_page):
+        # /in/me/ lands on /in/<member>/?isSelfProfile=true (#1364). The card
+        # is the same shape as any other profile; only the flag differs.
+        mock_page.evaluate = AsyncMock(
+            return_value={
+                "status": "resolved",
+                "pageUrl": "https://www.linkedin.com/in/testuser/?isSelfProfile=true",
+                "displayName": "Test User",
+                "composeHrefs": [
+                    "/messaging/compose/?recipient=ACoAAB&"
+                    "profileUrn=urn%3Ali%3Afsd_profile%3AACoAAB"
+                ],
+            }
+        )
+
+        resolution = await _sender(mock_page)._read_profile_message_target()
+
+        assert resolution.status == "resolved"
+        assert resolution.target is not None
+        assert resolution.target.profile_path == "/in/testuser/"
         assert resolution.target.profile_urn == "ACoAAB"
 
     @pytest.mark.parametrize("status", ["resolved", "unavailable"])
