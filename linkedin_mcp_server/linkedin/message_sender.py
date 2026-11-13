@@ -1465,9 +1465,12 @@ def _normalize_profile_urn(value: str | None) -> str | None:
     return candidate.removeprefix(_PROFILE_URN_PREFIX)
 
 
-# The 2026 profile page lands on /in/<name>/?isSelfProfile=false. That flag is
-# the only query a profile route may carry; any other still refuses.
-_BENIGN_PROFILE_QUERIES = {"", "isSelfProfile=false"}
+# LinkedIn appends isSelfProfile and nothing else. false is another member
+# (#1181); true is the signed-in member after /in/me/ (#1364). #1214
+# allowlisted only the value it had measured, so a correct self-profile
+# landing was refused. Either value alone is that landing. Any other query
+# still refuses.
+_BENIGN_PROFILE_QUERIES = {"", "isSelfProfile=false", "isSelfProfile=true"}
 
 
 def _profile_path_from_url(value: str) -> str | None:

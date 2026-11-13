@@ -735,17 +735,20 @@ class TestProfileMessageTargetDom:
         assert target.compose_url == COMPOSE_URL
 
     # Since late September 2026 LinkedIn lands /in/<name>/ on
-    # /in/<name>/?isSelfProfile=false (#1181). The page script resolved that
-    # card all along; the URL check after it refused every recipient.
-    async def test_redesigned_profile_url_resolves_its_top_card(self, dom_page):
+    # /in/<name>/?isSelfProfile=false (#1181), and /in/me/ on
+    # /in/<member>/?isSelfProfile=true (#1364). The page script resolved that
+    # card all along; the URL check after it refused the landing.
+    @pytest.mark.parametrize(
+        "query",
+        ["?isSelfProfile=false", "?isSelfProfile=true"],
+    )
+    async def test_redesigned_profile_url_resolves_its_top_card(self, dom_page, query):
         html = profile_page(
             f'<section><h1>{DISPLAY_NAME}</h1><a href="{COMPOSE_URL}">message</a>'
             "</section>"
         )
 
-        resolution = await read_profile_target(
-            dom_page, html, query="?isSelfProfile=false"
-        )
+        resolution = await read_profile_target(dom_page, html, query=query)
 
         assert resolution.status == "resolved"
         assert resolution.target is not None
